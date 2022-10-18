@@ -1,0 +1,20 @@
+V=Info.rdata;
+V1=V*0;
+%%bucar el craneo 
+V=medfilt3(V);
+for i=1:size(V,1)
+     V1(i,:,:) = FrangiFilter2D(squeeze(V(i,:,:)),options); 
+end
+V2 = imsegkmeans3(uint16(V1),2);
+ind=find(V2==2);
+
+[x,y,z]=ind2sub(size(V2),ind);
+[ center, radii, evecs, v, chi2 ] = ellipsoid_fit( [x y z], '' );
+pinta_ellipsoid(x,y,z,center, radii, evecs, v, chi2);
+%%pare ver el volumen
+ind=puntos_interiores_ellipsoide(size(V2),center, radii, v);
+SOL=V2*0;
+SOL(ind)=1;
+volshow(SOL)
+
+

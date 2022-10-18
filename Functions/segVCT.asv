@@ -1,0 +1,821 @@
+function varargout = segVCT(varargin)
+% SEGVCT MATLAB code for segVCT.fig
+%      SEGVCT, by itself, creates a new SEGVCT or raises the existing
+%      singleton*.
+%
+%      H = SEGVCT returns the handle to a new SEGVCT or the handle to
+%      the existing singleton*. ACION or raises the
+%      existing singleton*.  Starting from the left, property value pairs are
+%      applied to the GUI before segVC T_OpeningFcn gets called.  An
+%      unrecognized property name or invalid value makes property application
+%      stop.  All inputs are passed to segVCT_OpeningFcn via varargin.
+%
+%      *See GUI Options on GUIDE's Tools menu.  Choose "GUI allows only one
+%      instance to run (singleton)".
+%
+% See also: GUIDE, GUIDATA, GUIHANDLES
+
+% Edit the above text to modify the response to help segVCT
+
+% Last Modified by GUIDE v2.5 14-Apr-2021 11:04:41
+
+% Begin initialization code - DO NOT EDIT
+%%
+% ESTRUCTURA USADA Info:
+%
+%    Info.data; Matriz 3D Contiene el volumen cerebral 
+%    Info.rdata; Matriz 3D Contiene el volumen cerebral rotado
+%    Info.Vseg: Matriz 3D con el volumen cerebral segmentado
+%    Info.name: Nombre del fichero completo
+%    Info.flags.rotado;  Indica si se ha girado ya el cerebro
+%    Info.flags.volumen; Indica si ya se ha calculado el volumen
+%    Info.flags.segmentado; Indica si ya se ha realizado la segVCT
+%    Info.volumen;   volumen cerebral
+%    Info.spacings.sx; dimension del voxel en x
+%    Info.spacings.sy; dimension del voxel en y
+%    Info.sparings.sz; dimension del voxel en z
+
+
+
+global Info %estructura leida del .nrrd
+global filename pathname % nombre y path del .nrrd en uso
+global posiciony posicionz % posiciones de slider
+global fich_leido 
+global angulo %
+
+
+gui_Singleton = 1;
+gui_State = struct('gui_Name',       mfilename, ...
+                   'gui_Singleton',  gui_Singleton, ...
+                   'gui_OpeningFcn', @segVCT_OpeningFcn, ...
+                   'gui_OutputFcn',  @segVCT_OutputFcn, ...
+                   'gui_LayoutFcn',  [] , ...
+                   'gui_Callback',   []);
+if nargin && ischar(varargin{1})
+    gui_State.gui_Callback = str2func(varargin{1});
+end
+
+if nargout
+    [varargout{1:nargout}] = gui_mainfcn(gui_State, varargin{:});
+else
+    gui_mainfcn(gui_State, varargin{:});
+end
+% End initialization code - DO NOT EDIT
+
+
+% --- Executes just before segVCT is made visible.
+function segVCT_OpeningFcn(hObject, eventdata, handles, varargin)
+% This function has no output args, see OutputFcn.
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+% varargin   command line arguments to segVCT (see VARARGIN)
+
+% Choose default command line output for segVCT
+global Info angulo fich_leido orientacion
+
+warning('off','all')
+func_dir=pwd;
+addpath(fullfile(func_dir, 'Frangi'));
+addpath(fullfile(func_dir, 'Leervol'));
+
+fich_leido=0;
+orientacion=1;
+Info.flags.rotado=0;     %flags indica que operaciones se han realizado
+Info.flags.volumen=0;
+Info.flags.segmentado=0;                    
+handles.output = hObject;
+% Update handles structure
+guidata(hObject, handles);
+set(handles.pbload,'String','LEER')
+set(handles.textrotar,'String','0')
+set(handles.textslideAxial,'String','0')
+set(handles.pbvolumen,'String','VOLUMEN')
+set(handles.pbvolumen,'enable','off')
+set(handles.pbsegmenta,'String','SEGMENTAR')
+set(handles.pbsalir,'String','SALIR')
+set(handles.edit5,'String','0 ml');
+set(handles.radiobutton1,'Value',0);
+set(handles.PermutaAC,'Value',0);
+set(handles.PermutaSC,'Value',0);
+set(handles.PermutaAS,'Value',0);
+set(handles.edit6,'BackgroundColor','red')
+set(handles.edit7,'BackgroundColor','green')
+set(handles.edit8,'BackgroundColor','blue')
+axes (handles.axes1);axes (handles.axes2);axes (handles.axes3);
+
+
+% UIWAIT makes segVCT wait for user response (see UIRESUME)
+% uiwait(handles.figure1);
+
+
+% --- Outputs from this function are returned to the command line.
+function varargout = segVCT_OutputFcn(hObject, eventdata, handles) 
+% varargout  cell array for returning output args (see VARARGOUT);
+% hObject    handle to figure
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Get default command line output from handles structure
+varargout{1} = handles.output;
+
+
+% --- Executes on button press in pbvolumen.
+function pbvolumen_Callback(hObject, eventdata, handles)
+% hObject    handle to pbvolumen (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+    pbvolumen1(hObject, eventdata, handles)
+    imrefresca(handles)
+    
+% --- Executes on button press in pbsegmenta.
+function pbsegmenta_Callback(hObject, eventdata, handles)
+% hObject    handle to pbsegmenta (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global Info pathname
+% if  flags.volumen==-1 %%%%%% quito esta opcion de momento
+%      questdlg('Debe determinar el volumen de cerebral primero',' ','Ok','Ok');
+% else
+    answer = questdlg('Asegurese de tener la imagen en la orientación adecuada. ¿Segmentar?', 'Segmentar','Si', 'No','Si');
+    if isequal(answer,'Si')
+         if Info.flags.segmentado==0
+            load('Segnet_3C_200x200_2.mat')
+            Info.rdata=recorta(Info.rdata); 
+            Info.Vseg = SegmentaVTC2(Info.rdata,net);
+            resetslider1_2_3(handles)
+            imrefresca(handles)
+            Info.flags.segmentado=1;
+            clear net
+         end
+         Info.flags.rotado=1;
+         set(handles.PermutaAC,'Enable','off');
+         set(handles.PermutaSC,'Enable','off');
+         set(handles.PermutaAS,'Enable','off');
+         set(handles.sliderotar,'Enable','off');
+         set(handles.sliderAxial,'Enable','off');
+         set(handles.sliderotar,'Visible','off');
+         set(handles.sliderAxial,'Visible','off');
+         set(handles.textslideAxial,'Visible','off');
+         set(handles.textrotar,'Visible','off');
+      %  Info.flags.volumen=1;
+        %segmenta();
+        Segmenta(Info);
+        
+        set(handles.pbvolumen,'enable','off')
+        
+     end
+
+
+% --- Executes on button press in pbload.
+function pbload_Callback(hObject, eventdata, handles)
+% hObject    handle to pbload (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+global filename pathname Info posicionx posiciony posicionz 
+global fich_leido 
+%global dimension
+
+if fich_leido==1
+     answer = questdlg('Desea guardar los cambios' ,'Save', 'Si', 'No','Si');
+    if isequal(answer,'Si')
+       [filepath,name,ext] = fileparts([pathname,filename]); 
+       f = waitbar(0.30,'Guardando los datos');
+       save([filepath,'\',name,'VC.mat'],'Info');
+       close(f)
+       r.Interpreter = 'tex';
+       r.WindowStyle = 'modal';
+       uiwait(msgbox('\fontsize{12}Datos guardados correctamente','Success','help',r));
+    end
+    Info=[];
+    fich_leido=0;
+    set(handles.edit5,'String','0 ml');
+    set(handles.radiobutton1,'Value',0);
+    set(handles.PermutaAC,'Value',0);
+    set(handles.PermutaSC,'Value',0);
+    set(handles.PermutaAS,'Value',0);
+end
+        
+[filename, pathname] = uigetfile({'*.*'},'Select a volume');
+if filename == 0
+     return
+else
+    set(handles.pbvolumen,'enable','off')
+    set(handles.edit5,'String','0 ml');
+    fich_leido=1;
+    [filepath,name,ext] = fileparts([pathname,filename]);
+    if exist([filepath,'\',name,'VC.mat'],'file')==2
+        load([filepath,'\',name,'VC.mat'],'Info');
+    else
+        Info = leervolumen([pathname filename]);
+        if isempty(Info)
+          r.Interpreter = 'tex';
+          r.WindowStyle = 'modal';
+          uiwait(msgbox('\fontsize{12}Read error','','error',r));
+          return
+        end
+        fich_leido = 1;
+        Info.data  = recorta(Info.data); 
+        Info.rdata = Info.data;
+        Info.Vseg = 0*Info.data;
+        Info.volumen = 0;
+        Info.flags.rotado  = 0;
+        Info.flags.volumen = 0;
+        Info.flags.segmentado = 0;
+    end
+end
+
+if Info.flags.rotado
+    set(handles.PermutaAC,'Enable','off');
+    set(handles.PermutaSC,'Enable','off');
+    set(handles.PermutaAS,'Enable','off');
+    set(handles.sliderotar,'Enable','off');
+    set(handles.sliderAxial,'Enable','off');
+    set(handles.sliderotar,'Visible','off');
+    set(handles.sliderAxial,'Visible','off');
+    set(handles.textslideAxial,'Visible','off');
+    set(handles.textrotar,'Visible','off');
+    
+else
+    set(handles.PermutaAC,'Enable','on');
+    set(handles.PermutaSC,'Enable','on');
+    set(handles.PermutaAS,'Enable','on');
+    set(handles.sliderotar,'Enable','on');
+    set(handles.sliderAxial,'Enable','on');
+    set(handles.sliderotar,'Visible','on');
+    set(handles.sliderAxial,'Visible','on');
+    set(handles.textslideAxial,'Visible','on');
+    set(handles.textrotar,'Visible','on');
+
+end
+if Info.flags.volumen
+    set(handles.pbvolumen,'enable','off')
+   set(handles.edit5,'String',[num2str(Info.volumen),' ml']);
+end 
+
+DIM=size(Info.rdata);
+set(handles.edit1,'String',filename)
+set(handles.radiobutton1,'Value',0);
+posicionx=floor(DIM(1)/2);
+set(handles.edit2,'String',num2str(posicionx))
+set(handles.slider1,'Value',posicionx);
+set(handles.slider1,'SliderStep',[1/(DIM(1)-1) 0.1]) 
+set(handles.slider1,'Max',DIM(1));
+set(handles.slider1,'Min',1);
+
+posiciony=floor(DIM(2)/2);
+set(handles.edit3,'String',num2str(posiciony))
+set(handles.slider2,'Value',posiciony);
+set(handles.slider2,'SliderStep',[1/(DIM(2)-1) 0.1])  
+set(handles.slider2,'Max',DIM(2));
+set(handles.slider2,'Min',1);
+
+posicionz=floor(DIM(3)/2);
+set(handles.edit4,'String',num2str(posicionz))
+set(handles.slider3,'Value',posicionz);
+set(handles.slider3,'SliderStep',[1/(DIM(3)-1) 0.1]) 
+set(handles.slider3,'Max',DIM(3));
+set(handles.slider3,'Min',1);
+imrefresca(handles)
+
+% --- Executes on button press in pbsalir.
+function pbsalir_Callback(hObject, eventdata, handles)
+% hObject    handle to pbsalir (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global pathname filename Info
+   
+   set(0,'DefaultFigureWindowStyle','normal')
+   delete(handles.figure1);
+   clear all
+
+% --- Executes when user attempts to close figure1.
+function figure1_CloseRequestFcn(hObject, eventdata, handles)
+% hObject    handle to figure1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+global pathname filename Info
+   set(0,'DefaultFigureWindowStyle','normal')
+   delete(hObject);
+   clear all
+   
+% --- Executes on slider movement.
+function slider1_Callback(hObject, eventdata, handles)
+% hObject    handle to slider1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+imrefresca(handles)
+ 
+ 
+% --- Executes during object creation, after setting all properties.
+function slider1_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to slider1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: slider controls usually have a light gray background.
+if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+end
+
+
+% --- Executes on slider movement.
+function slider2_Callback(hObject, eventdata, handles)
+% hObject    handle to slider2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+imrefresca(handles)
+
+% --- Executes during object creation, after setting all properties.
+function slider2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to slider2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: slider controls usually have a light gray background.
+if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+end
+
+% --- Executes on slider movement.
+function slider3_Callback(hObject, eventdata, handles)
+% hObject    handle to slider3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+imrefresca(handles)
+
+
+% --- Executes during object creation, after setting all properties.
+function slider3_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to slider3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: slider controls usually have a light gray background.
+if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+end
+
+function edit1_Callback(hObject, eventdata, handles)
+% hObject    handle to edit1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit1 as text
+%        str2double(get(hObject,'String')) returns contents of edit1 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit1_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+hObject.FontSize=10;
+hObject.String='';
+
+function edit2_Callback(hObject, eventdata, handles)
+% hObject    handle to edit2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit2 as text
+%        str2double(get(hObject,'String')) returns contents of edit2 as a double
+
+% --- Executes during object creation, after setting all properties.
+function edit2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+hObject.FontSize=10;
+hObject.String='';
+
+
+function edit3_Callback(hObject, eventdata, handles)
+% hObject    handle to edit3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit3 as text
+%        str2double(get(hObject,'String')) returns contents of edit3 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit3_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit3 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+hObject.FontSize=10;
+hObject.String='';
+
+
+function edit4_Callback(hObject, eventdata, handles)
+% hObject    handle to edit4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit4 as text
+%        str2double(get(hObject,'String')) returns contents of edit4 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit4_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit4 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+hObject.FontSize=10;
+hObject.String='';
+
+function edit5_Callback(hObject, eventdata, handles)
+% hObject    handle to edit5 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit5 as text
+%        str2double(get(hObject,'String')) returns contents of edit5 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit5_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit5 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes during object creation, after setting all properties.
+function radiobutton1_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to radiobutton1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+hObject.Value=0;
+
+
+% --- Executes during object deletion, before destroying properties.
+function radiobutton1_Callback(hObject, eventdata, handles)
+% hObject    handle to radiobutton1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+imrefresca(handles)
+
+function radiobutton1_DeleteFcn(hObject, eventdata, handles)
+% hObject    handle to radiobutton1 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+
+
+% --- Executes on button press in radiobutton2.
+function radiobutton2_Callback(hObject, eventdata, handles)
+% hObject    handle to radiobutton2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of radiobutton2
+imrefresca(handles)
+
+% --- Executes during object creation, after setting all properties.
+function radiobutton2_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to radiobutton2 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+hObject.Value=0;
+
+function edit6_Callback(hObject, eventdata, handles)
+% hObject    handle to edit6 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit6 as text
+%        str2double(get(hObject,'String')) returns contents of edit6 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit6_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit6 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+
+function edit7_Callback(hObject, eventdata, handles)
+% hObject    handle to edit7 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit7 as text
+%        str2double(get(hObject,'String')) returns contents of edit7 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit7_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit7 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+function edit8_Callback(hObject, eventdata, handles)
+% hObject    handle to edit8 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'String') returns contents of edit8 as text
+%        str2double(get(hObject,'String')) returns contents of edit8 as a double
+
+
+% --- Executes during object creation, after setting all properties.
+function edit8_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to edit8 (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: edit controls usually have a white background on Windows.
+%       See ISPC and COMPUTER.
+if ispc && isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor','white');
+end
+
+
+% --- Executes on button press in PermutaAS.
+function PermutaAS_Callback(hObject, eventdata, handles)
+% hObject    handle to PermutaAS (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of PermutaAS
+global Info;
+if handles.PermutaAS.Value==1, alpha=90;
+else alpha=-90;
+end
+Info.data   = imrotate3(Info.data,alpha,[0 0 1],'linear','loose','FillValues',0);
+Info.rdata = Info.data;
+resetslider1_2_3(handles)
+resetsliderotacion(handles)
+imrefresca(handles)
+
+% --- Executes on button press in PermutaSC.
+function PermutaSC_Callback(hObject, eventdata, handles)
+% hObject    handle to PermutaSC (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of PermutaSC
+global Info;
+if handles.PermutaSC.Value==1, alpha=90;
+else alpha=-90;
+end
+
+Info.data   = imrotate3(Info.data,alpha,[0 1 0],'linear','loose','FillValues',0);
+Info.rdata = Info.data;
+resetslider1_2_3(handles)
+resetsliderotacion(handles)
+imrefresca(handles)
+
+% --- Executes on button press in PermutaAC.
+function PermutaAC_Callback(hObject, eventdata, handles)
+% hObject    handle to PermutaAC (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hint: get(hObject,'Value') returns toggle state of PermutaAC
+global Info
+if handles.PermutaAC.Value==1, alpha=90;
+else alpha=-90;
+end
+
+Info.data   = imrotate3(Info.data,alpha,[1 0 0],'linear','loose','FillValues',0);
+Info.rdata = Info.data;
+resetslider1_2_3(handles)
+resetsliderotacion(handles)
+imrefresca(handles)
+
+% --- Executes on button press in flipAxial.
+
+
+% --- Executes on slider movement.
+function sliderotar_Callback(hObject, eventdata, handles)
+% hObject    handle to sliderotar (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+global Info
+
+axial_ang =  round(handles.sliderAxial.Value,1);
+if axial_ang>=0
+    axial_ang=fix(axial_ang)+(axial_ang>fix(axial_ang))*0.5;
+else
+     axial_ang=fix(axial_ang)-(axial_ang<fix(axial_ang))*0.5;
+end
+
+rotation_ang = round(handles.sliderotar.Value,1);
+if rotation_ang>=0
+    rotation_ang=fix(rotation_ang)+(rotation_ang>fix(rotation_ang))*0.5;
+else
+     rotation_ang=fix(rotation_ang)-(rotation_ang<fix(rotation_ang))*0.5;
+end
+
+handles.sliderotar.Value=rotation_ang;
+set(handles.textrotar,'String',num2str(rotation_ang))
+
+Info.rdata   = imrotate3(Info.data,rotation_ang,[0 0 1],'linear','loose','FillValues',0);
+Info.rdata   = imrotate3(Info.rdata,axial_ang,[0 1 0],'linear','loose','FillValues',0); 
+Info.Vseg    = 0*Info.rdata;
+imrefresca(handles)
+
+
+% --- Executes during object creation, after setting all properties.
+function sliderotar_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to sliderotar (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: slider controls usually have a light gray background.
+if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+end
+set(hObject,'Max',180);
+set(hObject,'Min',-180);
+set(hObject,'Value',0);
+
+theRange = 360;
+steps = [1/theRange, 10/theRange];
+set(hObject, 'SliderStep', steps);
+%hObject.MajorTicks = -180:30:180;
+%hObject.MajorTickLabels = {''}
+
+
+function sliderAxial_Callback(hObject, eventdata, handles)
+% hObject    handle to sliderAxial (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    structure with handles and user data (see GUIDATA)
+
+% Hints: get(hObject,'Value') returns position of slider
+%        get(hObject,'Min') and get(hObject,'Max') to determine range of slider
+
+global Info
+axial_ang =  round(handles.sliderAxial.Value,1);
+if axial_ang>=0
+    axial_ang=fix(axial_ang)+(axial_ang>fix(axial_ang))*0.5;
+else
+     axial_ang=fix(axial_ang)-(axial_ang<fix(axial_ang))*0.5;
+end
+
+rotation_ang = round(handles.sliderotar.Value,1);
+
+if rotation_ang>=0
+    rotation_ang=fix(rotation_ang)+(rotation_ang>fix(rotation_ang))*0.5;
+else
+     rotation_ang=fix(rotation_ang)-(rotation_ang<fix(rotation_ang))*0.5;
+end
+
+set(handles.sliderAxial,'Value',axial_ang);
+set(handles.textslideAxial,'String',num2str(axial_ang))
+Info.rdata   = imrotate3(Info.data,rotation_ang,[0 0 1],'linear','loose','FillValues',0);
+Info.rdata   = imrotate3(Info.rdata,axial_ang,[0 1 0],'linear','loose','FillValues',0); 
+Info.Vseg    = 0*Info.rdata;
+imrefresca(handles)
+
+% --- Executes during object creation, after setting all properties.
+function sliderAxial_CreateFcn(hObject, eventdata, handles)
+% hObject    handle to sliderAxial (see GCBO)
+% eventdata  reserved - to be defined in a future version of MATLAB
+% handles    empty - handles not created until after all CreateFcns called
+
+% Hint: slider controls usually have a light gray background.
+if isequal(get(hObject,'BackgroundColor'), get(0,'defaultUicontrolBackgroundColor'))
+    set(hObject,'BackgroundColor',[.9 .9 .9]);
+end
+
+set(hObject,'Max',180);
+set(hObject,'Min',-180);
+set(hObject,'Value',0);
+theRange = 360;
+steps = [1/theRange, 10/theRange];
+set(hObject, 'SliderStep', steps);
+
+
+
+function imrefresca(handles)
+global Info 
+
+px=floor(handles.slider1.Value);
+py=floor(handles.slider2.Value);
+pz=floor(handles.slider3.Value);
+D=size(Info.rdata);
+set(handles.edit2,'String',num2str(px))
+set(handles.edit3,'String',num2str(py))
+set(handles.edit4,'String',num2str(pz))
+
+    
+axes (handles.axes1);
+cla(handles.axes1,'reset')
+imshow(squeeze(Info.rdata(px,:,:)),[]);
+if handles.radiobutton1.Value==1
+    hold on,visboundaries(squeeze(Info.Vseg(px,:,:)));
+end
+if handles.radiobutton2.Value==1
+    line(1:D(3),ones(1,D(3))*py,'Color','green');
+    line(ones(1,D(2))*pz,1:D(2),'Color','blue');
+end
+
+
+axes (handles.axes2);
+cla(handles.axes2,'reset')
+imshow(squeeze(Info.rdata(:,py,:)),[]);
+if handles.radiobutton1.Value==1
+    hold on,visboundaries(squeeze(Info.Vseg(:,py,:)));
+end
+if handles.radiobutton2.Value==1
+    line(1:D(3),ones(1,D(3))*px,'Color','red');
+    line(ones(1,D(2))*pz,1:D(2),'Color','blue');
+end
+
+axes (handles.axes3);
+cla(handles.axes3,'reset')
+imshow(squeeze(Info.rdata(:,:,pz)),[]);
+if handles.radiobutton1.Value==1
+    hold on,visboundaries(squeeze(Info.Vseg(:,:,pz)));
+end
+if handles.radiobutton2.Value==1
+    line(1:D(2),ones(1,D(2))*px,'Color','red')
+    line(ones(1,D(2))*py,1:D(2),'Color','green');
+end
+texto={[num2str(round(Info.volumen,2)),' ml']};
+set(handles.edit5,'String',texto);
+ 
+function resetslider1_2_3(handles)
+global Info
+
+DIM=size(Info.rdata);
+posicionx=floor(DIM(1)/2);
+set(handles.edit2,'String',num2str(posicionx))
+set(handles.slider1,'Value',posicionx);
+set(handles.slider1,'SliderStep',[1/(DIM(1)-1) 0.1]) 
+set(handles.slider1,'Max',DIM(1));
+set(handles.slider1,'Min',1);
+
+posiciony=floor(DIM(2)/2);
+set(handles.edit3,'String',num2str(posiciony))
+set(handles.slider2,'Value',posiciony);
+set(handles.slider2,'SliderStep',[1/(DIM(2)-1) 0.1])  
+set(handles.slider2,'Max',DIM(2));
+set(handles.slider2,'Min',1);
+
+posicionz=floor(DIM(3)/2);
+set(handles.edit4,'String',num2str(posicionz))
+set(handles.slider3,'Value',posicionz);
+set(handles.slider3,'SliderStep',[1/(DIM(3)-1) 0.1]) 
+set(handles.slider3,'Max',DIM(3));
+set(handles.slider3,'Min',1);
+
+function resetsliderotacion(handles)
+set(handles.sliderAxial,'Value',0);
+set(handles.textslideAxial,'String',0);
+set(handles.sliderotar,'Value',0);
+set(handles.textrotar,'String',0);
